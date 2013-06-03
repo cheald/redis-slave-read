@@ -1,5 +1,5 @@
 class Redis
-  class Distributor
+  module Distributor
     VERSION = "0.1"
   end
 end

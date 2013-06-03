@@ -1,6 +1,6 @@
 require "spec_helper"
 
-describe Redis::Distributor do
+describe Redis::Distributor::Interface::Hiredis do
   let(:master) { Redis.new }
   let(:slaves) { [Redis.new, Redis.new] }
 
@@ -54,11 +54,9 @@ describe Redis::Distributor do
 
   context "commands that distribute to all nodes" do
     it "should distribute to each node" do
-      described_class::ALL_COMMANDS.each do |cmd|
-        master.should_receive(cmd).once
-        slaves.each {|slave| slave.should_receive(cmd).once }
-        subject.send(cmd)
-      end
+      master.should_receive(:select).once
+      slaves.each {|slave| slave.should_receive(:select).once }
+      subject.send(:select)
     end
 
     it "should set the DB on each node" do
