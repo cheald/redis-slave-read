@@ -1,12 +1,12 @@
-# Redis::Distributor
+# Redis::SlaveRead
 
-TODO: Write a gem description
+Provides for distribution of slave reads in a Redis cluster.
 
 ## Installation
 
 Add this line to your application's Gemfile:
 
-    gem 'redis-distributor'
+    gem 'redis-slave-read'
 
 And then execute:
 
@@ -14,11 +14,25 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install redis-distributor
+    $ gem install redis-slave-read
 
 ## Usage
 
-TODO: Write usage instructions here
+Rather than using a Redis instance, create a wrapper that wraps multiple Redis connections.
+
+  master = Redis.new "localhost:6379"
+  slave1 = Redis.new "localhost:6389"
+  slave2 = Redis.new "localhost:6399"
+  $redis = Redis::SlaveRead::Interface::HiRedis.new(master: master, slaves: [slave1, slave2])
+
+Make sure that your slaves are set to be slaved to the master, like `slaveof localhost 6379`
+
+Now, you can treat your SlaveRead interface as a normal Redis interfaces. Reads are distributed
+among the slaves, and writes are always sent to the master. Writes will be propagated to slaves
+by the master.
+
+  $redis.set "foo", "bar"
+  $redis.get "foo"
 
 ## Contributing
 

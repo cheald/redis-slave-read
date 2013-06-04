@@ -1,5 +1,5 @@
 class Redis
-  module Distributor
+  module SlaveRead
     module Interface
       class Hiredis < Base
         slave %w(

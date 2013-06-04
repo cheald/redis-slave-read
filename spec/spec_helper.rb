@@ -1,6 +1,6 @@
 require 'rubygems'
 require 'bundler/setup'
-require 'redis-distributor'
+require 'redis-slave-read'
 
 Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
 

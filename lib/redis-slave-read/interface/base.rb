@@ -2,7 +2,7 @@ require 'redis'
 require 'thread'
 
 class Redis
-  module Distributor
+  module SlaveRead
     module Interface
       class Base
         attr_accessor :master, :slaves, :nodes, :read_master, :all

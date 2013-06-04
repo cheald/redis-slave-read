@@ -1,15 +1,15 @@
 # -*- encoding: utf-8 -*-
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'redis-distributor/version'
+require 'redis-slave-read/version'
 
 Gem::Specification.new do |gem|
-  gem.name          = "redis-distributor"
-  gem.version       = Redis::Distributor::VERSION
+  gem.name          = "redis-slave-read"
+  gem.version       = Redis::SlaveRead::VERSION
   gem.authors       = ["Chris Heald"]
   gem.email         = ["cheald@gmail.com"]
-  gem.description   = %q{Provides load balancing between a cluster of Redis replicas}
-  gem.summary       = %q{Provides load balancing between a cluster of Redis replicas}
+  gem.description   = %q{Provides load balancing of reads in a cluster of Redis replicas}
+  gem.summary       = %q{Provides load balancing of reads in a cluster of Redis replicas}
   gem.homepage      = ""
 
   gem.files         = `git ls-files`.split($/)

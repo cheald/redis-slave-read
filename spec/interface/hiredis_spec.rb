@@ -1,6 +1,6 @@
 require "spec_helper"
 
-describe Redis::Distributor::Interface::Hiredis do
+describe Redis::SlaveRead::Interface::Hiredis do
   let(:master) { Redis.new }
   let(:slaves) { [Redis.new, Redis.new] }
 
