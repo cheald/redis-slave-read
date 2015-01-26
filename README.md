@@ -23,7 +23,7 @@ Rather than using a Redis instance, create a wrapper that wraps multiple Redis c
     master = Redis.new "localhost:6379"
     slave1 = Redis.new "localhost:6389"
     slave2 = Redis.new "localhost:6399"
-    $redis = Redis::SlaveRead::Interface::HiRedis.new(master: master, slaves: [slave1, slave2])
+    $redis = Redis::SlaveRead::Interface::Hiredis.new(master: master, slaves: [slave1, slave2])
 
 Make sure that your slaves are set to be slaved to the master, like `slaveof localhost 6379`
 
