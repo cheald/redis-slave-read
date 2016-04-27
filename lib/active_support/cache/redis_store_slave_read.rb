@@ -4,7 +4,6 @@ module ActiveSupport
   module Cache
     class RedisStoreSlaveRead < Store
       def initialize(options = {})
-        interface = options.fetch(:interface, ::Redis::SlaveRead::Interface::Hiredis)
         @pool_options = options
         init_pool @pool_options
         @options = {}
@@ -118,7 +117,7 @@ module ActiveSupport
 
       # Force client reconnection, useful for apps deployed on forking servers.
       def reconnect
-        init_pool
+        init_pool @pool_options
       end
 
       def expire(key, expiry)
@@ -127,7 +126,8 @@ module ActiveSupport
 
       protected
 
-        def init_pool
+        def init_pool(options)
+          interface = options.fetch(:interface, ::Redis::SlaveRead::Interface::Hiredis)
           @pool.shutdown {|node| node.disconnect } if @pool
           @pool = ConnectionPool.new(:size => options.fetch(:pool_size, 1), :timeout => options.fetch(:pool_timeout, 3)) do
             interface.new(
