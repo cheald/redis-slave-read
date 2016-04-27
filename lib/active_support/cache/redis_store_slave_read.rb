@@ -1,29 +1,13 @@
+require 'connection_pool'
+
 module ActiveSupport
   module Cache
-    class RedisStore < Store
-      # Instantiate the store.
-      #
-      # Example:
-      #   RedisStore.new
-      #     # => host: localhost,   port: 6379,  db: 0
-      #
-      #   RedisStore.new "example.com"
-      #     # => host: example.com, port: 6379,  db: 0
-      #
-      #   RedisStore.new "example.com:23682"
-      #     # => host: example.com, port: 23682, db: 0
-      #
-      #   RedisStore.new "example.com:23682/1"
-      #     # => host: example.com, port: 23682, db: 1
-      #
-      #   RedisStore.new "example.com:23682/1/theplaylist"
-      #     # => host: example.com, port: 23682, db: 1, namespace: theplaylist
-      #
-      #   RedisStore.new "localhost:6379/0", "localhost:6380/0"
-      #     # => instantiate a cluster
-      def initialize(*addresses)
-        @data = ::Redis::Factory.create(addresses)
-        super(addresses.extract_options!)
+    class RedisStoreSlaveRead < Store
+      def initialize(options = {})
+        interface = options.fetch(:interface, ::Redis::SlaveRead::Interface::Hiredis)
+        @pool_options = options
+        init_pool @pool_options
+        @options = {}
       end
 
       def write(name, value, options = nil)
@@ -43,7 +27,7 @@ module ActiveSupport
         instrument(:delete_matched, matcher.inspect) do
           matcher = key_matcher(matcher, options)
           begin
-            !(keys = @data.keys(matcher)).empty? && @data.del(*keys)
+            @pool.with {|s| !(keys = s.keys(matcher)).empty? && s.del(*keys) }
           rescue Errno::ECONNREFUSED => e
             false
           end
@@ -57,7 +41,7 @@ module ActiveSupport
       #   cache.read_multi "rabbit", "white-rabbit"
       #   cache.read_multi "rabbit", "white-rabbit", :raw => true
       def read_multi(*names)
-        values = @data.mget(*names)
+        values = @pool.with {|s| s.mget(*names) }
 
         # Remove the options hash before mapping keys to values
         names.extract_options!
@@ -90,7 +74,7 @@ module ActiveSupport
       #   cache.read "rabbit", :raw => true       # => "1"
       def increment(key, amount = 1)
         instrument(:increment, key, :amount => amount) do
-          @data.incrby key, amount
+          @pool.with {|s| s.incrby key, amount }
         end
       end
 
@@ -117,36 +101,52 @@ module ActiveSupport
       #   cache.read "rabbit", :raw => true       # => "-1"
       def decrement(key, amount = 1)
         instrument(:decrement, key, :amount => amount) do
-          @data.decrby key, amount
+          @pool.with {|s| s.decrby key, amount }
         end
       end
 
       # Clear all the data from the store.
       def clear
         instrument(:clear, nil, nil) do
-          @data.flushdb
+          @pool.with {|s| s.flushdb }
         end
       end
 
       def stats
-        @data.info
+        @pool.with {|s| s.info }
       end
 
-      # Force client reconnection, useful Unicorn deployed apps.
+      # Force client reconnection, useful for apps deployed on forking servers.
       def reconnect
-        @data.reconnect
+        init_pool
+      end
+
+      def expire(key, expiry)
+        @pool.with {|s| s.expire key, expiry }
       end
 
       protected
+
+        def init_pool
+          @pool.shutdown {|node| node.disconnect } if @pool
+          @pool = ConnectionPool.new(:size => options.fetch(:pool_size, 1), :timeout => options.fetch(:pool_timeout, 3)) do
+            interface.new(
+              master: ::Redis::Store::Factory.create(options[:master]),
+              slaves: options[:slaves].map {|s| ::Redis::Store::Factory.create(s) },
+              read_master: false
+            )
+          end
+        end
+
         def write_entry(key, entry, options)
           method = options && options[:unless_exist] ? :setnx : :set
-          @data.send method, key, entry, options
+          @pool.with {|s| s.send method, key, entry, options }
         rescue Errno::ECONNREFUSED => e
           false
         end
 
         def read_entry(key, options)
-          entry = @data.get key, options
+          entry = @pool.with {|s| s.get key, options }
           if entry
             entry.is_a?(ActiveSupport::Cache::Entry) ? entry : ActiveSupport::Cache::Entry.new(entry)
           end
@@ -160,7 +160,7 @@ module ActiveSupport
         # It's really needed and use
         #
         def delete_entry(key, options)
-          @data.del key
+          @pool.with {|s| s.del key }
         rescue Errno::ECONNREFUSED => e
           false
         end

@@ -18,4 +18,5 @@ Gem::Specification.new do |gem|
   gem.require_paths = ["lib"]
 
   gem.add_runtime_dependency 'redis', '>= 0', '>= 0'
+  gem.add_runtime_dependency 'connection_pool'
 end
