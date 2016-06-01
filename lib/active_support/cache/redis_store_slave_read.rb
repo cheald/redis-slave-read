@@ -4,9 +4,9 @@ module ActiveSupport
   module Cache
     class RedisStoreSlaveRead < Store
       def initialize(options = {})
-        @pool_options = options
+        @options = options.dup
+        @pool_options = @options.slice!(*ActiveSupport::Cache::UNIVERSAL_OPTIONS)
         init_pool @pool_options
-        @options = {}
       end
 
       def write(name, value, options = nil)
