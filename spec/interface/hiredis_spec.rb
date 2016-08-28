@@ -40,6 +40,14 @@ describe Redis::SlaveRead::Interface::Hiredis do
         2.times { subject.get "foo" }
       end
     end
+
+    it "returns replies to all commands in multi block" do
+      results = subject.multi do
+        subject.set 'foo', 'bar'
+        subject.get 'foo'
+      end
+      expect(results).to eq(['OK', 'bar'])
+    end
   end
 
   context "when in a pipelined block" do

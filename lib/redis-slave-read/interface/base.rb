@@ -81,11 +81,13 @@ class Redis
         end
 
         def multi(*args, &block)
+          replies = nil
           @block_exec_mutex.synchronize do
             @locked_node = @master
-            @master.send(:multi, *args, &block)
+            replies = @master.send(:multi, *args, &block)
             @locked_node = nil
           end
+          replies
         end
 
         private
