@@ -58,6 +58,13 @@ describe Redis::SlaveRead::Interface::Hiredis do
         2.times { subject.get "foo" }
       end
     end
+
+    it "returns replies to all commands in pipelined block" do
+      results = subject.pipelined do
+        2.times { subject.set 'foo', 'bar' }
+      end
+      expect(results).to eq(['OK', 'OK'])
+    end
   end
 
   context "commands that distribute to all nodes" do
