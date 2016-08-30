@@ -26,9 +26,9 @@ describe Redis::SlaveRead::Interface::Hiredis do
     it "should distribute reads between all available slaves" do
       expect(master).to receive(:get).never
       expect(slaves[1]).to receive(:get).twice
-      expect(slaves[0]).to receive(:get).once
+      expect(slaves[0]).to receive(:get).twice
 
-      3.times { subject.get "foo" }
+      4.times { subject.get "foo" }
     end
   end
 
