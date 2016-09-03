@@ -44,7 +44,7 @@ class Redis
           @all = slaves + [@master]
           @nodes = slaves.dup
           @nodes.unshift @master if @read_master
-          @index = 0
+          @index = rand(@nodes.length)
         end
 
         def method_missing(method, *args)
