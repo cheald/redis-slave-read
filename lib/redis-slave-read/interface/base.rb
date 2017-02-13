@@ -49,7 +49,7 @@ class Redis
 
         def method_missing(method, *args)
           if master.respond_to?(method)
-            define_method(method) do |*_args|
+            define_singleton_method(method) do |*_args|
               @master.send(method, *_args)
             end
             send(method, *args)
