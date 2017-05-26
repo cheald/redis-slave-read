@@ -40,7 +40,7 @@ class Redis
           @round_robin_mutex = Mutex.new
           @master = options[:master] || raise("Must specify a master")
           @slaves = options[:slaves] || []
-          @read_master = options[:read_master].nil? && true || options[:read_master]
+          @read_master = options[:read_master].nil? || options[:read_master]
           @all = slaves + [@master]
           @nodes = slaves.dup
           @nodes.unshift @master if @read_master
@@ -97,6 +97,8 @@ class Redis
           @round_robin_mutex.synchronize do
             if @locked_node
               @locked_node
+            elsif @nodes.empty?
+              @master
             else
               @index = (@index + 1) % @nodes.length
               @nodes[@index]
