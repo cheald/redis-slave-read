@@ -133,7 +133,7 @@ module ActiveSupport
             interface.new(
               master: ::Redis::Store::Factory.create(options[:master]),
               slaves: options[:slaves].map {|s| ::Redis::Store::Factory.create(s) },
-              read_master: false
+              read_master: options.key?(:read_master) ? options[:read_master] : false
             )
           end
         end
@@ -156,9 +156,6 @@ module ActiveSupport
 
         ##
         # Implement the ActiveSupport::Cache#delete_entry
-        #
-        # It's really needed and use
-        #
         def delete_entry(key, options)
           @pool.with {|s| s.del key }
         rescue Errno::ECONNREFUSED => e
