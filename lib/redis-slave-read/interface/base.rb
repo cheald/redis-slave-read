@@ -61,7 +61,9 @@ class Redis
         def pipelined(*args, &block)
           @block_exec_mutex.synchronize do
             @locked_node = @master
-            @master.send(:pipelined, *args, &block)
+            result = @master.send(:pipelined, *args, &block)
+            @locked_node = nil
+            result
           end
         end
 
@@ -81,13 +83,12 @@ class Redis
         end
 
         def multi(*args, &block)
-          replies = nil
           @block_exec_mutex.synchronize do
             @locked_node = @master
             replies = @master.send(:multi, *args, &block)
             @locked_node = nil
+            replies
           end
-          replies
         end
 
         private
