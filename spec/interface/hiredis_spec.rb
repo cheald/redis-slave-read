@@ -70,8 +70,14 @@ describe Redis::SlaveRead::Interface::Hiredis do
   context "commands that distribute to all nodes" do
     it "should distribute to each node" do
       expect(master).to receive(:select).once
-      slaves.each {|slave| expect(slave).to receive(:select).once }
+      slaves.each { |slave| expect(slave).to receive(:select).once }
       subject.send(:select)
+    end
+
+    it "should define singleton method delegating to master as a fallback" do
+      expect(master).to receive(:masterful_method)
+      slaves.each { |slave| expect(slave).not_to receive(:masterful_method) }
+      subject.send(:masterful_method)
     end
 
     it "should set the DB on each node" do
