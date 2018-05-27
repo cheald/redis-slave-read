@@ -27,7 +27,7 @@ module ActiveSupport
           matcher = key_matcher(matcher, options)
           begin
             @pool.with {|s| !(keys = s.keys(matcher)).empty? && s.del(*keys) }
-          rescue Errno::ECONNREFUSED, Redis::CannotConnectError => e
+          rescue Errno::ECONNREFUSED, Redis::BaseError => e
             false
           end
         end
@@ -141,7 +141,7 @@ module ActiveSupport
         def write_entry(key, entry, options)
           method = options && options[:unless_exist] ? :setnx : :set
           @pool.with {|s| s.send method, key, entry, options }
-        rescue Errno::ECONNREFUSED, Redis::CannotConnectError => e
+        rescue Errno::ECONNREFUSED, Redis::BaseError => e
           false
         end
 
@@ -150,7 +150,7 @@ module ActiveSupport
           if entry
             entry.is_a?(ActiveSupport::Cache::Entry) ? entry : ActiveSupport::Cache::Entry.new(entry)
           end
-        rescue Errno::ECONNREFUSED, Redis::CannotConnectError => e
+        rescue Errno::ECONNREFUSED, Redis::BaseError => e
           nil
         end
 
@@ -158,7 +158,7 @@ module ActiveSupport
         # Implement the ActiveSupport::Cache#delete_entry
         def delete_entry(key, options)
           @pool.with {|s| s.del key }
-        rescue Errno::ECONNREFUSED, Redis::CannotConnectError => e
+        rescue Errno::ECONNREFUSED, Redis::BaseError => e
           false
         end
 
