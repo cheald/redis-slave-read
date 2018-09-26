@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'connection_pool'
 
 module ActiveSupport
@@ -6,12 +8,12 @@ module ActiveSupport
       def initialize(options = {})
         @options = options.dup
         @pool_options = @options.slice!(*ActiveSupport::Cache::UNIVERSAL_OPTIONS)
-        init_pool @pool_options
+        init_pool(@pool_options)
       end
 
       def write(name, value, options = nil)
         options = merged_options(options)
-        instrument(:write, name, options) do |payload|
+        instrument(:write, name, options) do |_payload|
           entry = options[:raw].present? ? value : Entry.new(value, options)
           write_entry(namespaced_key(name, options), entry, options)
         end
@@ -26,8 +28,8 @@ module ActiveSupport
         instrument(:delete_matched, matcher.inspect) do
           matcher = key_matcher(matcher, options)
           begin
-            @pool.with {|s| !(keys = s.keys(matcher)).empty? && s.del(*keys) }
-          rescue Errno::ECONNREFUSED => e
+            @pool.with { |s| !(keys = s.keys(matcher)).empty? && s.del(*keys) }
+          rescue Errno::ECONNREFUSED
             false
           end
         end
@@ -40,13 +42,13 @@ module ActiveSupport
       #   cache.read_multi "rabbit", "white-rabbit"
       #   cache.read_multi "rabbit", "white-rabbit", :raw => true
       def read_multi(*names)
-        values = @pool.with {|s| s.mget(*names) }
+        values = @pool.with { |s| s.mget(*names) }
 
         # Remove the options hash before mapping keys to values
         names.extract_options!
 
         result = Hash[names.zip(values)]
-        result.reject!{ |k,v| v.nil? }
+        result.reject! { |_k, v| v.nil? }
         result
       end
 
@@ -72,8 +74,8 @@ module ActiveSupport
       #   cache.increment "rabbit"
       #   cache.read "rabbit", :raw => true       # => "1"
       def increment(key, amount = 1)
-        instrument(:increment, key, :amount => amount) do
-          @pool.with {|s| s.incrby key, amount }
+        instrument(:increment, key, amount: amount) do
+          @pool.with { |s| s.incrby(key, amount) }
         end
       end
 
@@ -99,84 +101,83 @@ module ActiveSupport
       #   cache.decrement "rabbit"
       #   cache.read "rabbit", :raw => true       # => "-1"
       def decrement(key, amount = 1)
-        instrument(:decrement, key, :amount => amount) do
-          @pool.with {|s| s.decrby key, amount }
+        instrument(:decrement, key, amount: amount) do
+          @pool.with { |s| s.decrby(key, amount) }
         end
       end
 
       # Clear all the data from the store.
       def clear
         instrument(:clear, nil, nil) do
-          @pool.with {|s| s.flushdb }
+          @pool.with(&:flushdb)
         end
       end
 
       def stats
-        @pool.with {|s| s.info }
+        @pool.with(&:info)
       end
 
       # Force client reconnection, useful for apps deployed on forking servers.
       def reconnect
-        init_pool @pool_options
+        init_pool(@pool_options)
       end
 
       def expire(key, expiry)
-        @pool.with {|s| s.expire key, expiry }
+        @pool.with { |s| s.expire(key, expiry) }
       end
 
       protected
 
-        def init_pool(options)
-          interface = options.fetch(:interface, ::Redis::SlaveRead::Interface::Hiredis)
-          @pool.shutdown {|node| node.disconnect } if @pool
-          @pool = ConnectionPool.new(:size => options.fetch(:pool_size, 1), :timeout => options.fetch(:pool_timeout, 3)) do
-            interface.new(
-              master: ::Redis::Store::Factory.create(options[:master]),
-              slaves: options[:slaves].map {|s| ::Redis::Store::Factory.create(s) },
-              read_master: options.key?(:read_master) ? options[:read_master] : false
-            )
-          end
+      def init_pool(options)
+        interface = options.fetch(:interface, ::Redis::SlaveRead::Interface::Hiredis)
+        @pool&.shutdown { |node| node.disconnect }
+        @pool = ConnectionPool.new(size: options.fetch(:pool_size, 1), timeout: options.fetch(:pool_timeout, 3)) do
+          interface.new(
+            master: ::Redis::Store::Factory.create(options[:master]),
+            slaves: options[:slaves].map { |s| ::Redis::Store::Factory.create(s) },
+            read_master: options.key?(:read_master) ? options[:read_master] : false
+          )
         end
+      end
 
-        def write_entry(key, entry, options)
-          method = options && options[:unless_exist] ? :setnx : :set
-          @pool.with {|s| s.send method, key, entry, options }
-        rescue Errno::ECONNREFUSED => e
-          false
+      def write_entry(key, entry, options)
+        method = options && options[:unless_exist] ? :setnx : :set
+        @pool.with { |s| s.send(method, key, entry, options) }
+      rescue Errno::ECONNREFUSED
+        false
+      end
+
+      def read_entry(key, options)
+        entry = @pool.with { |s| s.get(key, options) }
+        if entry
+          entry.is_a?(ActiveSupport::Cache::Entry) ? entry : ActiveSupport::Cache::Entry.new(entry)
         end
+      rescue Errno::ECONNREFUSED
+        nil
+      end
 
-        def read_entry(key, options)
-          entry = @pool.with {|s| s.get key, options }
-          if entry
-            entry.is_a?(ActiveSupport::Cache::Entry) ? entry : ActiveSupport::Cache::Entry.new(entry)
-          end
-        rescue Errno::ECONNREFUSED => e
-          nil
+      ##
+      # Implement the ActiveSupport::Cache#delete_entry
+      def delete_entry(key, _options)
+        @pool.with { |s| s.del(key) }
+      rescue Errno::ECONNREFUSED
+        false
+      end
+
+      # Add the namespace defined in the options to a pattern designed to match keys.
+      #
+      # This implementation is __different__ than ActiveSupport:
+      # __it doesn't accept Regular expressions__, because the Redis matcher is designed
+      # only for strings with wildcards.
+      def key_matcher(pattern, options)
+        prefix = options[:namespace].is_a?(Proc) ? options[:namespace].call : options[:namespace]
+        if prefix
+          raise "Regexps aren't supported, please use string with wildcards." if pattern.is_a?(Regexp)
+          "#{prefix}:#{pattern}"
+        else
+          pattern
         end
-
-        ##
-        # Implement the ActiveSupport::Cache#delete_entry
-        def delete_entry(key, options)
-          @pool.with {|s| s.del key }
-        rescue Errno::ECONNREFUSED => e
-          false
-        end
-
-
-        # Add the namespace defined in the options to a pattern designed to match keys.
-        #
-        # This implementation is __different__ than ActiveSupport:
-        # __it doesn't accept Regular expressions__, because the Redis matcher is designed
-        # only for strings with wildcards.
-        def key_matcher(pattern, options)
-          prefix = options[:namespace].is_a?(Proc) ? options[:namespace].call : options[:namespace]
-          if prefix
-            raise "Regexps aren't supported, please use string with wildcards." if pattern.is_a?(Regexp)
-            "#{prefix}:#{pattern}"
-          else
-            pattern
-          end
-        end
+      end
     end
   end
 end
