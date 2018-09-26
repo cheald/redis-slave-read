@@ -1,5 +1,6 @@
+# frozen_string_literal: true
+
 require 'redis'
-require 'thread'
 
 class Redis
   module SlaveRead
@@ -38,7 +39,7 @@ class Redis
         def initialize(options = {})
           @block_exec_mutex = Mutex.new
           @round_robin_mutex = Mutex.new
-          @master = options[:master] || raise("Must specify a master")
+          @master = options[:master] || raise('Must specify a master')
           @slaves = options[:slaves] || []
           @read_master = options[:read_master].nil? || options[:read_master]
           @all = slaves + [@master]
@@ -49,8 +50,8 @@ class Redis
 
         def method_missing(method, *args)
           if master.respond_to?(method)
-            define_method(method) do |*_args|
-              @master.send(method, *_args)
+            define_method(method) do |*my_args|
+              @master.send(method, *my_args)
             end
             send(method, *args)
           else
